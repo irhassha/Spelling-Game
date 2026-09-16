@@ -2,8 +2,19 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Naya & Diba Spelling Bee</title>
+
+  <!-- PWA Meta & Manifest -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#ff6b81" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+
+  <!-- Font Fredoka -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
@@ -23,6 +34,7 @@
     * {
       box-sizing: border-box;
       font-family: 'Fredoka', cursive, sans-serif;
+      -webkit-tap-highlight-color: transparent;
     }
 
     body {
@@ -85,7 +97,6 @@
       font-size: 25px;
     }
 
-    /* Area Pengaturan List Kata */
     .setup-box {
       background: #fff;
       border: 2px dashed #ffccd5;
@@ -125,7 +136,6 @@
       margin-top: 4px;
     }
 
-    /* Indikator Babak */
     .round-badge {
       display: inline-block;
       background: #c7ecee;
@@ -137,7 +147,6 @@
       margin-bottom: 12px;
     }
 
-    /* Kartu Kata Tersembunyi */
     .word-preview-card {
       background: #f1f2f6;
       border-radius: 16px;
@@ -167,7 +176,6 @@
       background: #ced6e0;
     }
 
-    /* Tombol Suara */
     .voice-bar {
       display: flex;
       gap: 8px;
@@ -226,7 +234,6 @@
       100% { transform: scale(1); }
     }
 
-    /* Kotak Jawaban */
     .answer-box {
       min-height: 75px;
       border: 3px dashed #c7ecee;
@@ -241,7 +248,6 @@
       background: #f7fbfb;
     }
 
-    /* Balok Pilihan */
     .tiles-pool {
       display: flex;
       flex-wrap: wrap;
@@ -318,7 +324,7 @@
     .message.wrong { color: #ff4757; }
     .message.info { color: #0984e3; }
 
-    /* MODAL VERIFIKASI ORANG TUA */
+    /* Modal Verifikasi Orang Tua */
     .modal-overlay {
       position: fixed;
       top: 0;
@@ -394,7 +400,7 @@
     <!-- Panel Setup Daftar Kata -->
     <div class="setup-box" id="setupBox">
       <label for="wordListInput">📝 Masukkan Kata (Maks. 10 Kata):</label>
-      <textarea id="wordListInput" placeholder="Contoh:&#10;CAT&#10;BOOK&#10;APPLE&#10;ORANGE">CAT
+      <textarea id="wordListInput" placeholder="Contoh:&#10;CAT&#10;BOOK&#10;APPLE">CAT
 BOOK
 APPLE
 PENCIL</textarea>
@@ -449,7 +455,7 @@ PENCIL</textarea>
     </div>
   </div>
 
-  <!-- MODAL KUNCI ORANG TUA (Parental Verification) -->
+  <!-- Modal Kunci Orang Tua -->
   <div class="modal-overlay" id="parentModal">
     <div class="modal-card">
       <h3>🛡️ Kunci Orang Tua</h3>
@@ -467,17 +473,24 @@ PENCIL</textarea>
   </div>
 
   <script>
+    // Daftarkan Service Worker PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('PWA Service Worker siap:', reg.scope))
+          .catch(err => console.log('Gagal pasang SW:', err));
+      });
+    }
+
     let wordList = [];
     let currentWordIndex = 0;
     let targetWord = "";
     let poolTiles = [];
     let placedTiles = [];
 
-    // State visibilitas per ronde
     let isWordRevealed = false;
     let isTilesRevealed = false;
 
-    // Data Verifikasi Ortu
     let expectedMathAnswer = 0;
     let pendingUnlockAction = "";
 
@@ -547,7 +560,6 @@ PENCIL</textarea>
       }
     }
 
-    // Membaca daftar input kata hingga 10 kata
     function initWordList() {
       const rawText = document.getElementById('wordListInput').value;
       const tokens = rawText.split(/[\n,]+/).map(w => w.trim().toUpperCase().replace(/[^A-Z]/g, '')).filter(Boolean);
@@ -557,7 +569,6 @@ PENCIL</textarea>
         return;
       }
 
-      // Ambil maksimal 10 kata
       wordList = tokens.slice(0, 10);
       currentWordIndex = 0;
 
@@ -571,7 +582,6 @@ PENCIL</textarea>
       targetWord = wordList[index];
       placedTiles = [];
 
-      // DEFAULT: Sembunyikan balok & kata rahasia
       isWordRevealed = false;
       isTilesRevealed = false;
 
@@ -581,11 +591,9 @@ PENCIL</textarea>
       document.getElementById('nextWordBtn').style.display = 'none';
       document.getElementById('message').textContent = '';
 
-      // Balok pool disembunyikan
       document.getElementById('hiddenPoolNotice').style.display = 'flex';
       document.getElementById('tilesPool').style.display = 'none';
 
-      // Siapkan data huruf
       poolTiles = targetWord.split('').map((char, i) => ({
         id: i,
         letter: char
@@ -689,13 +697,11 @@ PENCIL</textarea>
       renderTiles();
     }
 
-    // SISTEM VERIFIKASI ORANG TUA (Perkalian Sulit)
     function requestParentAccess(action) {
       pendingUnlockAction = action;
 
-      // Hasilkan perkalian 2 digit acak yang sulit ditebak anak
-      const numA = Math.floor(Math.random() * 25) + 16; // 16 - 40
-      const numB = Math.floor(Math.random() * 20) + 14; // 14 - 33
+      const numA = Math.floor(Math.random() * 25) + 16;
+      const numB = Math.floor(Math.random() * 20) + 14;
       expectedMathAnswer = numA * numB;
 
       document.getElementById('mathQuestion').textContent = `${numA} × ${numB} = ?`;
@@ -715,7 +721,6 @@ PENCIL</textarea>
       const userAns = parseInt(document.getElementById('mathAnswerInput').value, 10);
 
       if (userAns === expectedMathAnswer) {
-        // Jawaban Benar -> Buka Kunci
         if (pendingUnlockAction === 'revealWord') {
           isWordRevealed = true;
           updateWordMaskDisplay();
@@ -730,7 +735,6 @@ PENCIL</textarea>
       }
     }
 
-    // MODE EJA CEPAT SEKALI TARIKAN NAPAS
     function startOneShotSpelling() {
       if (!SpeechRecognition) {
         alert("Browser belum mendukung mic. Disarankan buka lewat Chrome.");
@@ -847,7 +851,6 @@ PENCIL</textarea>
         msg.textContent = '🎉 Hore! Hebat sekali ejaanmu benar! 🌟';
         speak("Great job! That is correct! " + targetWord);
 
-        // Tampilkan tombol lanjut jika masih ada kata tersisa
         if (currentWordIndex < wordList.length - 1) {
           document.getElementById('nextWordBtn').style.display = 'inline-block';
         } else {
