@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Naya & Diba Spelling Bee</title>
+  <!-- Font lucu dan membulat dari Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
@@ -320,7 +321,7 @@
         📢 Dengar Kata
       </button>
       <button id="speechSpellBtn" class="speech-btn" onclick="toggleVoiceSpelling()">
-        ⚡ Eja Cepat via Suara
+        🎤 Mode Eja Suara
       </button>
     </div>
 
@@ -336,7 +337,7 @@
     </div>
 
     <div class="hidden-pool-notice" id="hiddenPoolNotice">
-      🔒 Balok disembunyikan! Ucapkan hurufnya satu per satu lewat mic.
+      🔒 Balok disembunyikan! Ucapkan hurufnya langsung lewat mic.
     </div>
 
     <div class="tiles-pool" id="tilesPool"></div>
@@ -356,41 +357,47 @@
     let isWordVisible = true;
     let isTilesVisible = true;
     let isListeningSpelling = false;
-    let currentSpellingRecognizer = null;
+    let continuousRecognizer = null;
+    let consumedTokensCount = 0;
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    // Kamus fonetik ejaan Inggris & aksen Indonesia
+    // Pemetaan fonetik lafal huruf (Inggris & adaptasi Indonesia)
     const phoneticLetterMap = {
-      'A': 'A', 'AY': 'A', 'EI': 'A', 'EH': 'A',
+      'A': 'A', 'AY': 'A', 'EI': 'A', 'EH': 'A', 'EY': 'A',
       'B': 'B', 'BE': 'B', 'BEE': 'B', 'BI': 'B',
       'C': 'C', 'SEE': 'C', 'SEA': 'C', 'SI': 'C', 'CE': 'C',
-      'D': 'D', 'DEE': 'D', 'DI': 'D', 'DE': 'D',
-      'E': 'E', 'EE': 'E', 'I': 'E',
-      'F': 'F', 'EF': 'F',
+      'D': 'D', 'DEE': 'D', 'DE': 'D', 'DI': 'D',
+      'E': 'E', 'EE': 'E',
+      'F': 'F', 'EF': 'F', 'EFF': 'F',
       'G': 'G', 'GEE': 'G', 'JI': 'G', 'GE': 'G',
       'H': 'H', 'AITCH': 'H', 'ACHE': 'H', 'HA': 'H',
       'I': 'I', 'EYE': 'I', 'AYE': 'I', 'AI': 'I',
       'J': 'J', 'JAY': 'J', 'JEI': 'J', 'JE': 'J',
       'K': 'K', 'KAY': 'K', 'KA': 'K',
-      'L': 'L', 'EL': 'L',
+      'L': 'L', 'EL': 'L', 'ELL': 'L',
       'M': 'M', 'EM': 'M',
-      'N': 'N', 'EN': 'N', 'AN': 'N',
-      'O': 'O', 'OH': 'O',
+      'N': 'N', 'EN': 'N',
+      'O': 'O', 'OH': 'O', 'OW': 'O',
       'P': 'P', 'PEA': 'P', 'PEE': 'P', 'PI': 'P', 'PE': 'P',
-      'Q': 'Q', 'CUE': 'Q', 'QUE': 'Q', 'KIU': 'Q',
+      'Q': 'Q', 'CUE': 'Q', 'QUE': 'Q', 'KIU': 'Q', 'KYU': 'Q',
       'R': 'R', 'ARE': 'R', 'AR': 'R', 'ER': 'R',
       'S': 'S', 'ESS': 'S', 'ES': 'S',
       'T': 'T', 'TEA': 'T', 'TEE': 'T', 'TI': 'T', 'TE': 'T',
       'U': 'U', 'YOU': 'U', 'YU': 'U',
-      'V': 'V', 'VEE': 'V', 'VI': 'V',
-      'W': 'W', 'DOUBLE U': 'W', 'DOUBLE-U': 'W',
+      'V': 'V', 'VEE': 'V', 'VI': 'V', 'VE': 'V',
+      'W': 'W',
       'X': 'X', 'EX': 'X', 'EKS': 'X',
       'Y': 'Y', 'WHY': 'Y', 'WAI': 'Y',
-      'Z': 'Z', 'ZEE': 'Z', 'ZED': 'Z'
+      'Z': 'Z', 'ZEE': 'Z', 'ZED': 'Z', 'ZET': 'Z'
     };
 
-    // Bunyi efek "pop" ringan sintetis (tidak mendengung ke mic)
+    // Kata pengisi/tambahan yang otomatis dilewati
+    const fillerWords = new Set([
+      'LETTER', 'HURUF', 'PLEASE', 'TOLONG', 'DONG', 'THE', 'NEXT', 'DAN', 'AND', 'UH', 'UM'
+    ]);
+
+    // Efek audio pop halus via Web Audio API (tidak memicu umpan balik ke mic)
     function playCutePop() {
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -398,13 +405,13 @@
         const gain = ctx.createGain();
         osc.type = 'sine';
         osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.07);
-        gain.gain.setValueAtTime(0.18, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.07);
+        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.06);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.06);
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start();
-        osc.stop(ctx.currentTime + 0.07);
+        osc.stop(ctx.currentTime + 0.06);
       } catch (e) {}
     }
 
@@ -466,7 +473,7 @@
       recognizer.lang = 'en-US';
       const msg = document.getElementById('message');
       msg.className = 'message info';
-      msg.textContent = '🎙️ Ucapkan kata sekarang...';
+      msg.textContent = '🎙️ Silakan ucapkan satu kata bahasa Inggris...';
 
       recognizer.onresult = (event) => {
         const spokenWord = event.results[0][0].transcript.trim().toUpperCase().replace(/[^A-Z]/g, '');
@@ -565,13 +572,13 @@
       }
     }
 
-    function selectTile(id, playSound = true) {
+    function selectTile(id, playVoiceSound = true) {
       const index = poolTiles.findIndex(t => t.id === id);
       if (index !== -1) {
         const [tile] = poolTiles.splice(index, 1);
         placedTiles.push(tile);
 
-        if (playSound) {
+        if (playVoiceSound) {
           speak(tile.letter);
         } else {
           playCutePop();
@@ -579,7 +586,6 @@
 
         renderTiles();
 
-        // Jika semua huruf telah tersusun, langsung periksa otomatis
         if (placedTiles.length === targetWord.length) {
           stopVoiceSpelling();
           setTimeout(checkSpelling, 300);
@@ -599,39 +605,20 @@
     function resetCurrentTiles() {
       poolTiles = [...poolTiles, ...placedTiles];
       placedTiles = [];
+      consumedTokensCount = 0;
       document.getElementById('message').textContent = '';
       renderTiles();
     }
 
-    // Penerjemah kata/suara menjadi satu karakter huruf
-    function resolveSpokenLetter(rawText) {
-      const text = rawText.trim().toUpperCase();
-
-      if (phoneticLetterMap[text]) {
-        return phoneticLetterMap[text];
+    // Resolusi token kata menjadi karakter huruf tunggal
+    function resolveTokenToLetter(token) {
+      const upper = token.trim().toUpperCase();
+      if (phoneticLetterMap[upper]) {
+        return phoneticLetterMap[upper];
       }
-
-      const clean = text.replace(/[^A-Z]/g, '');
-      if (clean.length === 1) {
-        return clean;
+      if (/^[A-Z]$/.test(upper)) {
+        return upper;
       }
-
-      // Ambil kata terakhir (misal user mengucap: "Huruf P")
-      const words = text.split(/\s+/).filter(Boolean);
-      for (let i = words.length - 1; i >= 0; i--) {
-        const w = words[i].replace(/[^A-Z]/g, '');
-        if (phoneticLetterMap[w]) return phoneticLetterMap[w];
-        if (w.length === 1) return w;
-      }
-
-      // Cocokkan huruf pertama kata jika tersedia di pool
-      if (clean.length > 0) {
-        const first = clean.charAt(0);
-        if (poolTiles.some(t => t.letter === first)) {
-          return first;
-        }
-      }
-
       return null;
     }
 
@@ -641,67 +628,114 @@
       if (isListeningSpelling) {
         stopVoiceSpelling();
       } else {
-        isListeningSpelling = true;
-        const btn = document.getElementById('speechSpellBtn');
-        btn.className = 'speech-btn listening';
-        btn.textContent = '🛑 Berhenti Mendengar';
-
-        const msg = document.getElementById('message');
-        msg.className = 'message info';
-        msg.textContent = '⚡ Mic Aktif: Ucapkan hurufnya satu per satu...';
-
-        startSpellingSession();
+        startContinuousVoiceEngine();
       }
     }
 
-    // Sesi Eja Single-Shot Cepat
-    function startSpellingSession() {
-      if (!isListeningSpelling) return;
+    // ENGINE SUARA UTAMA: Continuous + Interim Delta Tokenizer
+    function startContinuousVoiceEngine() {
+      isListeningSpelling = true;
+      consumedTokensCount = 0;
 
-      currentSpellingRecognizer = new SpeechRecognition();
-      currentSpellingRecognizer.lang = 'en-US';
-      currentSpellingRecognizer.continuous = false; // Tanpa jeda buffer continuous
-      currentSpellingRecognizer.interimResults = true; // Langsung tangkap saat diucapkan
+      const btn = document.getElementById('speechSpellBtn');
+      btn.className = 'speech-btn listening';
+      btn.textContent = '🛑 Matikan Mic';
 
-      let isLetterHandled = false;
+      const msg = document.getElementById('message');
+      msg.className = 'message info';
+      msg.textContent = '🎙️ Mic menyala terus! Ucapkan hurufnya langsung (misal: "B", "O", "O", "K")...';
 
-      currentSpellingRecognizer.onresult = (event) => {
-        if (isLetterHandled) return;
+      continuousRecognizer = new SpeechRecognition();
+      continuousRecognizer.lang = 'en-US';
+      continuousRecognizer.continuous = true;
+      continuousRecognizer.interimResults = true;
 
-        const transcript = event.results[0][0].transcript;
-        const detectedChar = resolveSpokenLetter(transcript);
+      continuousRecognizer.onresult = (event) => {
+        if (!isListeningSpelling) return;
 
-        if (detectedChar) {
-          const matchTile = poolTiles.find(t => t.letter === detectedChar);
-          if (matchTile) {
-            isLetterHandled = true;
-            selectTile(matchTile.id, false);
+        // Gabungkan transkrip yang sedang mengalir
+        let rawAccumulated = "";
+        for (let i = 0; i < event.results.length; i++) {
+          rawAccumulated += event.results[i][0].transcript + " ";
+        }
 
-            const msg = document.getElementById('message');
-            msg.className = 'message info';
-            msg.textContent = `⚡ Huruf '${detectedChar}' masuk! Ucapkan berikutnya...`;
+        // Normalisasi frasa umum anak-anak
+        rawAccumulated = rawAccumulated
+          .toUpperCase()
+          .replace(/DOUBLE\s+U/g, 'W')
+          .replace(/DOUBLE-U/g, 'W')
+          .replace(/DOUBLEYOU/g, 'W')
+          .replace(/LETTER\s+([A-Z])/g, '$1')
+          .replace(/HURUF\s+([A-Z])/g, '$1');
 
-            // Potong sesi saat ini agar tidak menunggu timeout hening
-            try { currentSpellingRecognizer.abort(); } catch (e) {}
+        // Pisahkan menjadi deretan token kata
+        const tokens = rawAccumulated.match(/[A-Z]+/g) || [];
+        const isCurrentChunkFinal = event.results[event.results.length - 1].isFinal;
+
+        // Proses token baru yang belum pernah dikonsumsi
+        while (consumedTokensCount < tokens.length) {
+          const token = tokens[consumedTokensCount];
+          const isLastToken = (consumedTokensCount === tokens.length - 1);
+
+          // 1. Lewati kata penghubung/pengisi
+          if (fillerWords.has(token)) {
+            consumedTokensCount++;
+            continue;
+          }
+
+          // 2. Terjemahkan kata menjadi huruf
+          const letter = resolveTokenToLetter(token);
+
+          if (letter) {
+            // Cari balok yang masih tersedia di area pilihan
+            const matchTile = poolTiles.find(t => t.letter === letter);
+
+            if (matchTile) {
+              selectTile(matchTile.id, false);
+              msg.className = 'message info';
+              msg.textContent = `⚡ Huruf '${letter}' masuk! Lanjut eja berikutnya...`;
+              consumedTokensCount++;
+
+              if (placedTiles.length === targetWord.length) {
+                return;
+              }
+            } else {
+              // Huruf tidak ada di pool atau sudah dipakai
+              msg.className = 'message wrong';
+              msg.textContent = `⚠️ Huruf '${letter}' tidak ada / sudah dipakai.`;
+              consumedTokensCount++;
+            }
+          } else {
+            // Token belum dikenali: jika bukan token terakhir atau chunk sudah final, lewati
+            if (!isLastToken || isCurrentChunkFinal) {
+              consumedTokensCount++;
+            } else {
+              break;
+            }
           }
         }
       };
 
-      currentSpellingRecognizer.onend = () => {
-        // Otomatis siap menerima huruf berikutnya dalam 80ms
-        if (isListeningSpelling) {
-          setTimeout(startSpellingSession, 80);
-        }
-      };
-
-      currentSpellingRecognizer.onerror = (e) => {
+      continuousRecognizer.onerror = (e) => {
         if (e.error === 'not-allowed') {
+          msg.className = 'message wrong';
+          msg.textContent = '❌ Izin mic ditolak sistem.';
           stopVoiceSpelling();
         }
       };
 
+      // Hanya hidupkan ulang jika browser memutus sesi karena hening terlalu lama
+      continuousRecognizer.onend = () => {
+        if (isListeningSpelling) {
+          consumedTokensCount = 0;
+          try {
+            continuousRecognizer.start();
+          } catch (e) {}
+        }
+      };
+
       try {
-        currentSpellingRecognizer.start();
+        continuousRecognizer.start();
       } catch (e) {}
     }
 
@@ -710,11 +744,14 @@
       const btn = document.getElementById('speechSpellBtn');
       if (btn) {
         btn.className = 'speech-btn';
-        btn.textContent = '⚡ Eja Cepat via Suara';
+        btn.textContent = '🎤 Mode Eja Suara';
       }
-      if (currentSpellingRecognizer) {
-        try { currentSpellingRecognizer.abort(); } catch (e) {}
-        currentSpellingRecognizer = null;
+      if (continuousRecognizer) {
+        continuousRecognizer.onend = null;
+        try {
+          continuousRecognizer.abort();
+        } catch (e) {}
+        continuousRecognizer = null;
       }
     }
 
