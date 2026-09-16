@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Naya & Diba Spelling Bee</title>
-  <!-- Font lucu dari Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
@@ -177,7 +176,6 @@
       font-size: 14px;
       padding: 10px 14px;
     }
-    .audio-btn:hover { background: #f39c12; box-shadow: 0 6px 0 #e67e22; }
 
     .speech-btn {
       background: #1dd1a1;
@@ -185,7 +183,6 @@
       font-size: 14px;
       padding: 10px 14px;
     }
-    .speech-btn:hover { background: #10ac84; box-shadow: 0 6px 0 #0e8f6e; }
 
     .speech-btn.listening {
       background: #ff4757;
@@ -199,7 +196,6 @@
       100% { transform: scale(1); }
     }
 
-    /* Kotak Jawaban */
     .answer-box {
       min-height: 75px;
       border: 3px dashed #c7ecee;
@@ -214,7 +210,6 @@
       background: #f7fbfb;
     }
 
-    /* Bagian Kontrol Show/Hide Balok Pilihan */
     .pool-control-bar {
       display: flex;
       justify-content: space-between;
@@ -233,12 +228,6 @@
       border-radius: 14px;
     }
 
-    .toggle-pool-btn:hover {
-      background: #0984e3;
-      box-shadow: 0 4px 0 #0056b3;
-    }
-
-    /* Kotak Pesan saat Balok Disembunyikan */
     .hidden-pool-notice {
       background: #dfe6e9;
       color: #636e72;
@@ -250,7 +239,6 @@
       display: none;
     }
 
-    /* Balok Huruf */
     .tiles-pool {
       display: flex;
       flex-wrap: wrap;
@@ -277,10 +265,6 @@
       transition: all 0.15s ease;
     }
 
-    .tile:hover {
-      transform: translateY(-3px) scale(1.06);
-    }
-
     .tile.placed {
       background: var(--purple);
       box-shadow: 0 4px 0 #6c5ce7;
@@ -299,9 +283,10 @@
 
     .message {
       margin-top: 16px;
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 700;
       min-height: 24px;
+      line-height: 1.4;
     }
 
     .message.correct { color: #2ed573; }
@@ -315,7 +300,6 @@
     <div class="header-tag">SERU & PINTAR</div>
     <h1>🌸 Naya & Diba Spelling Bee 🐝</h1>
 
-    <!-- Input kata & tombol suara -->
     <div class="input-section">
       <div class="input-wrapper">
         <input type="text" id="wordInput" placeholder="Ketik / ucapkan kata..." />
@@ -327,7 +311,6 @@
       <button onclick="startGame()">Mulai!</button>
     </div>
 
-    <!-- Tombol Suara Saat Bermain -->
     <div class="voice-bar" id="voiceBar" style="display: none;">
       <button id="hearWordBtn" class="audio-btn" onclick="speakCurrentWord()">
         📢 Dengar Kata
@@ -337,12 +320,10 @@
       </button>
     </div>
 
-    <!-- Kotak tempat menyusun huruf -->
     <div class="answer-box" id="answerBox">
       <span style="color: #a4b0be; font-size: 14px;">Ketuk huruf di bawah atau gunakan suara! 👇</span>
     </div>
 
-    <!-- Bar Kontrol Show / Hide Balok Pilihan -->
     <div class="pool-control-bar" id="poolControlBar" style="display: none;">
       <span>Balok Pilihan:</span>
       <button type="button" id="toggleTilesBtn" class="toggle-pool-btn" onclick="toggleTilesVisibility()">
@@ -350,15 +331,12 @@
       </button>
     </div>
 
-    <!-- Notifikasi saat balok disembunyikan -->
     <div class="hidden-pool-notice" id="hiddenPoolNotice">
       🔒 Balok pilihan disembunyikan! Ucapkan ejaan lewat tombol mic atau klik 'Tampilkan Balok' untuk bantuan.
     </div>
 
-    <!-- Pilihan huruf acak -->
     <div class="tiles-pool" id="tilesPool"></div>
 
-    <!-- Tombol aksi -->
     <div class="actions" id="controlButtons" style="display: none;">
       <button class="reset" onclick="resetCurrentTiles()">🔄 Ulangi</button>
       <button onclick="checkSpelling()">✨ Cek Jawaban</button>
@@ -407,6 +385,24 @@
       'Z': 'Z', 'ZEE': 'Z', 'ZED': 'Z'
     };
 
+    // Fungsi verifikasi apakah browser mengizinkan Mic
+    function checkMicSupport() {
+      const msg = document.getElementById('message');
+      if (!SpeechRecognition) {
+        msg.className = 'message wrong';
+        msg.textContent = '❌ Browser ini tidak mendukung Speech Recognition. Disarankan gunakan Google Chrome.';
+        return false;
+      }
+
+      // Cek protokol (file:// atau content://)
+      if (location.protocol === 'file:' || location.protocol.startsWith('content')) {
+        msg.className = 'message wrong';
+        alert("⚠️ Akses Mic Diblokir Browser:\n\nChrome di HP melarang akses mic jika file dibuka langsung dari memori lokal (file:// atau content://).\n\nSilakan jalankan file ini lewat HTTPS (misalnya buka lewat CodePen / GitHub Pages).");
+        return false;
+      }
+      return true;
+    }
+
     function toggleWordVisibility() {
       const input = document.getElementById('wordInput');
       const toggleBtn = document.getElementById('toggleBtn');
@@ -421,7 +417,6 @@
       }
     }
 
-    // Toggle Show/Hide untuk Balok Pilihan
     function toggleTilesVisibility() {
       isTilesVisible = !isTilesVisible;
       const pool = document.getElementById('tilesPool');
@@ -450,10 +445,7 @@
     }
 
     function listenForWordInput() {
-      if (!SpeechRecognition) {
-        alert("Browser ini belum mendukung input suara. Disarankan gunakan Google Chrome ya!");
-        return;
-      }
+      if (!checkMicSupport()) return;
 
       const recognizer = new SpeechRecognition();
       recognizer.lang = 'en-US';
@@ -465,13 +457,18 @@
         const spokenWord = event.results[0][0].transcript.trim().toUpperCase().replace(/[^A-Z]/g, '');
         if (spokenWord) {
           document.getElementById('wordInput').value = spokenWord;
-          msg.textContent = `Kata terdeteksi: ${spokenWord}! Klik 'Mulai' untuk bermain.`;
+          msg.textContent = `Kata: "${spokenWord}" terdeteksi! Klik 'Mulai'.`;
           speak(spokenWord);
         }
       };
 
-      recognizer.onerror = () => {
-        msg.textContent = 'Suara tidak terdengar, coba lagi ya.';
+      recognizer.onerror = (e) => {
+        msg.className = 'message wrong';
+        if (e.error === 'not-allowed') {
+          msg.textContent = '❌ Izin mic ditolak. Aktifkan izin mic untuk Chrome di pengaturan HP.';
+        } else {
+          msg.textContent = '❌ Suara tidak terdengar, coba lagi.';
+        }
       };
 
       recognizer.start();
@@ -487,12 +484,10 @@
         return;
       }
 
-      // Default HIDE kata input
       isWordVisible = false;
       input.type = "password";
       document.getElementById('toggleBtn').textContent = "👁️";
 
-      // Reset visibilitas balok huruf ke tampil
       isTilesVisible = true;
       document.getElementById('tilesPool').style.display = 'flex';
       document.getElementById('hiddenPoolNotice').style.display = 'none';
@@ -586,10 +581,7 @@
     }
 
     function toggleVoiceSpelling() {
-      if (!SpeechRecognition) {
-        alert("Fitur suara tidak didukung browser ini. Gunakan Google Chrome ya!");
-        return;
-      }
+      if (!checkMicSupport()) return;
 
       if (isListeningSpelling) {
         stopVoiceSpelling();
@@ -625,6 +617,14 @@
           msg.textContent = `Huruf '${detectedChar}' masuk! Teruskan mengeja...`;
         } else {
           msg.textContent = `Huruf '${detectedChar}' tidak ada atau sudah dipilih.`;
+        }
+      };
+
+      spellingRecognizer.onerror = (e) => {
+        if (e.error === 'not-allowed') {
+          msg.className = 'message wrong';
+          msg.textContent = '❌ Akses mic ditolak oleh browser/sistem.';
+          stopVoiceSpelling();
         }
       };
 
