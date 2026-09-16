@@ -324,7 +324,7 @@
     .message.wrong { color: #ff4757; }
     .message.info { color: #0984e3; }
 
-    /* Modal Verifikasi Orang Tua */
+    /* Modal Verifikasi */
     .modal-overlay {
       position: fixed;
       top: 0;
@@ -357,7 +357,7 @@
     }
 
     .math-question {
-      font-size: 24px;
+      font-size: 26px;
       font-weight: 700;
       color: var(--primary);
       margin: 12px 0;
@@ -365,7 +365,7 @@
     }
 
     .modal-input {
-      width: 140px;
+      width: 120px;
       padding: 10px;
       font-size: 20px;
       text-align: center;
@@ -397,7 +397,6 @@
     <div class="header-tag">SERU & PINTAR</div>
     <h1>🌸 Naya & Diba Spelling Bee 🐝</h1>
 
-    <!-- Panel Setup Daftar Kata -->
     <div class="setup-box" id="setupBox">
       <label for="wordListInput">📝 Masukkan Kata (Maks. 10 Kata):</label>
       <textarea id="wordListInput" placeholder="Contoh:&#10;CAT&#10;BOOK&#10;APPLE">CAT
@@ -408,11 +407,9 @@ PENCIL</textarea>
       <button onclick="initWordList()" style="width: 100%; margin-top: 10px;">🚀 Mulai Permainan!</button>
     </div>
 
-    <!-- Area Permainan -->
     <div id="gameArea" style="display: none;">
       <div class="round-badge" id="roundBadge">Kata 1 dari 4</div>
 
-      <!-- Preview Kata (Default Tersembunyi) -->
       <div class="word-preview-card">
         <span>Kata Rahasia: <span id="wordMask" style="letter-spacing: 3px;">••••••</span></span>
         <button type="button" class="lock-hint-btn" id="revealWordBtn" onclick="requestParentAccess('revealWord')">
@@ -429,12 +426,10 @@ PENCIL</textarea>
         </button>
       </div>
 
-      <!-- Kotak Susunan Huruf Jawaban -->
       <div class="answer-box" id="answerBox">
         <span style="color: #a4b0be; font-size: 14px;">Gunakan suara untuk mengeja kata! 👇</span>
       </div>
 
-      <!-- Balok Pilihan (Default Hidden) -->
       <div class="hidden-pool-box" id="hiddenPoolNotice">
         <span style="font-size: 13px; color: #57606f; font-weight: 600;">
           🔒 Balok huruf disembunyikan untuk melatih pendengaran.
@@ -455,14 +450,13 @@ PENCIL</textarea>
     </div>
   </div>
 
-  <!-- Modal Kunci Orang Tua -->
   <div class="modal-overlay" id="parentModal">
     <div class="modal-card">
-      <h3>🛡️ Kunci Orang Tua</h3>
-      <p style="font-size: 13px; color: #57606f; margin: 0;">Jawab soal matematika berikut untuk membuka:</p>
+      <h3>🛡️ Kunci Bantuan</h3>
+      <p style="font-size: 13px; color: #57606f; margin: 0;">Hitung penjumlahan berikut untuk membuka:</p>
       
-      <div class="math-question" id="mathQuestion">28 × 17 = ?</div>
-      <input type="number" id="mathAnswerInput" class="modal-input" placeholder="Jawaban" />
+      <div class="math-question" id="mathQuestion">5 + 7 = ?</div>
+      <input type="number" id="mathAnswerInput" class="modal-input" placeholder="Hasil" />
 
       <div class="modal-actions">
         <button type="button" class="cancel" onclick="closeParentModal()">Batal</button>
@@ -473,7 +467,6 @@ PENCIL</textarea>
   </div>
 
   <script>
-    // Daftarkan Service Worker PWA
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
@@ -697,14 +690,15 @@ PENCIL</textarea>
       renderTiles();
     }
 
+    // Penjumlahan satu digit (1 s.d. 9)
     function requestParentAccess(action) {
       pendingUnlockAction = action;
 
-      const numA = Math.floor(Math.random() * 25) + 16;
-      const numB = Math.floor(Math.random() * 20) + 14;
-      expectedMathAnswer = numA * numB;
+      const numA = Math.floor(Math.random() * 9) + 1; // 1 - 9
+      const numB = Math.floor(Math.random() * 9) + 1; // 1 - 9
+      expectedMathAnswer = numA + numB;
 
-      document.getElementById('mathQuestion').textContent = `${numA} × ${numB} = ?`;
+      document.getElementById('mathQuestion').textContent = `${numA} + ${numB} = ?`;
       document.getElementById('mathAnswerInput').value = '';
       document.getElementById('modalError').textContent = '';
 
@@ -731,7 +725,7 @@ PENCIL</textarea>
         }
         closeParentModal();
       } else {
-        document.getElementById('modalError').textContent = 'Jawaban belum tepat! Akses ditolak.';
+        document.getElementById('modalError').textContent = 'Jawaban salah, coba lagi ya!';
       }
     }
 
