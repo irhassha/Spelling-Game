@@ -187,7 +187,7 @@
     .speech-btn.listening {
       background: #ff4757;
       box-shadow: 0 4px 0 #c0392b;
-      animation: pulse 1.2s infinite;
+      animation: pulse 1s infinite;
     }
 
     @keyframes pulse {
@@ -265,6 +265,10 @@
       transition: all 0.15s ease;
     }
 
+    .tile:hover {
+      transform: translateY(-3px) scale(1.06);
+    }
+
     .tile.placed {
       background: var(--purple);
       box-shadow: 0 4px 0 #6c5ce7;
@@ -316,7 +320,7 @@
         📢 Dengar Kata
       </button>
       <button id="speechSpellBtn" class="speech-btn" onclick="toggleVoiceSpelling()">
-        🎤 Eja Lewat Suara
+        ⚡ Eja Cepat via Suara
       </button>
     </div>
 
@@ -353,6 +357,7 @@
     let isTilesVisible = true;
     let isListeningSpelling = false;
     let spellingRecognizer = null;
+    let lastMatchedWordIndex = -1;
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -385,19 +390,11 @@
       'Z': 'Z', 'ZEE': 'Z', 'ZED': 'Z'
     };
 
-    // Fungsi verifikasi apakah browser mengizinkan Mic
     function checkMicSupport() {
       const msg = document.getElementById('message');
       if (!SpeechRecognition) {
         msg.className = 'message wrong';
-        msg.textContent = '❌ Browser ini tidak mendukung Speech Recognition. Disarankan gunakan Google Chrome.';
-        return false;
-      }
-
-      // Cek protokol (file:// atau content://)
-      if (location.protocol === 'file:' || location.protocol.startsWith('content')) {
-        msg.className = 'message wrong';
-        alert("⚠️ Akses Mic Diblokir Browser:\n\nChrome di HP melarang akses mic jika file dibuka langsung dari memori lokal (file:// atau content://).\n\nSilakan jalankan file ini lewat HTTPS (misalnya buka lewat CodePen / GitHub Pages).");
+        msg.textContent = '❌ Browser ini belum mendukung mic. Disarankan buka lewat Chrome.';
         return false;
       }
       return true;
@@ -451,7 +448,7 @@
       recognizer.lang = 'en-US';
       const msg = document.getElementById('message');
       msg.className = 'message info';
-      msg.textContent = '🎙️ Silakan ucapkan satu kata bahasa Inggris...';
+      msg.textContent = '🎙️ Silakan ucapkan kata bahasa Inggris sekarang...';
 
       recognizer.onresult = (event) => {
         const spokenWord = event.results[0][0].transcript.trim().toUpperCase().replace(/[^A-Z]/g, '');
@@ -462,13 +459,9 @@
         }
       };
 
-      recognizer.onerror = (e) => {
+      recognizer.onerror = () => {
         msg.className = 'message wrong';
-        if (e.error === 'not-allowed') {
-          msg.textContent = '❌ Izin mic ditolak. Aktifkan izin mic untuk Chrome di pengaturan HP.';
-        } else {
-          msg.textContent = '❌ Suara tidak terdengar, coba lagi.';
-        }
+        msg.textContent = '❌ Suara tidak tertangkap, coba ulangi lagi ya.';
       };
 
       recognizer.start();
@@ -536,7 +529,7 @@
         const div = document.createElement('div');
         div.className = 'tile';
         div.textContent = tile.letter;
-        div.onclick = () => selectTile(tile.id);
+        div.onclick = () => selectTile(tile.id, true);
         pool.appendChild(div);
       });
 
@@ -554,12 +547,15 @@
       }
     }
 
-    function selectTile(id) {
+    // Param playSound = false saat mode voice agar mic tidak bentrok
+    function selectTile(id, playSound = true) {
       const index = poolTiles.findIndex(t => t.id === id);
       if (index !== -1) {
         const [tile] = poolTiles.splice(index, 1);
         placedTiles.push(tile);
-        speak(tile.letter);
+        if (playSound) {
+          speak(tile.letter);
+        }
         renderTiles();
       }
     }
@@ -576,6 +572,7 @@
     function resetCurrentTiles() {
       poolTiles = [...poolTiles, ...placedTiles];
       placedTiles = [];
+      lastMatchedWordIndex = -1;
       document.getElementById('message').textContent = '';
       renderTiles();
     }
@@ -592,38 +589,53 @@
 
     function startVoiceSpelling() {
       isListeningSpelling = true;
+      lastMatchedWordIndex = -1;
+
       const btn = document.getElementById('speechSpellBtn');
       btn.className = 'speech-btn listening';
       btn.textContent = '🛑 Berhenti Mendengar';
 
       const msg = document.getElementById('message');
       msg.className = 'message info';
-      msg.textContent = '🎙️ Ucapkan hurufnya satu per satu...';
+      msg.textContent = '⚡ Mic Aktif: Ucapkan hurufnya (misal: "P", "O", "M")...';
 
       spellingRecognizer = new SpeechRecognition();
       spellingRecognizer.lang = 'en-US';
       spellingRecognizer.continuous = true;
-      spellingRecognizer.interimResults = false;
+      // KUNCI KECEPATAN: Aktifkan interimResults agar deteksi instan tanpa jeda!
+      spellingRecognizer.interimResults = true;
 
       spellingRecognizer.onresult = (event) => {
-        const lastResultIndex = event.results.length - 1;
-        let spoken = event.results[lastResultIndex][0].transcript.trim().toUpperCase();
+        let fullTranscript = "";
+        for (let i = 0; i < event.results.length; i++) {
+          fullTranscript += event.results[i][0].transcript + " ";
+        }
+        fullTranscript = fullTranscript.trim().toUpperCase();
 
-        let detectedChar = phoneticLetterMap[spoken] || spoken.charAt(0);
+        const words = fullTranscript.split(/\s+/).filter(Boolean);
+        if (words.length > 0) {
+          const currentIndex = words.length - 1;
 
-        const matchTile = poolTiles.find(t => t.letter === detectedChar);
-        if (matchTile) {
-          selectTile(matchTile.id);
-          msg.textContent = `Huruf '${detectedChar}' masuk! Teruskan mengeja...`;
-        } else {
-          msg.textContent = `Huruf '${detectedChar}' tidak ada atau sudah dipilih.`;
+          // Hanya proses jika ada kata/suara baru yang muncul
+          if (currentIndex > lastMatchedWordIndex) {
+            const rawWord = words[currentIndex].replace(/[^A-Z]/g, '');
+            const detectedChar = phoneticLetterMap[rawWord] || rawWord.charAt(0);
+
+            const matchTile = poolTiles.find(t => t.letter === detectedChar);
+            if (matchTile) {
+              lastMatchedWordIndex = currentIndex;
+              // playSound = false agar mic tidak terdistorsi suara speaker sendiri
+              selectTile(matchTile.id, false);
+              msg.textContent = `⚡ Instan: Huruf '${detectedChar}' masuk! Lanjut...`;
+            }
+          }
         }
       };
 
       spellingRecognizer.onerror = (e) => {
         if (e.error === 'not-allowed') {
           msg.className = 'message wrong';
-          msg.textContent = '❌ Akses mic ditolak oleh browser/sistem.';
+          msg.textContent = '❌ Izin mic ditolak sistem.';
           stopVoiceSpelling();
         }
       };
@@ -642,7 +654,7 @@
       const btn = document.getElementById('speechSpellBtn');
       if (btn) {
         btn.className = 'speech-btn';
-        btn.textContent = '🎤 Eja Lewat Suara';
+        btn.textContent = '⚡ Eja Cepat via Suara';
       }
       if (spellingRecognizer) {
         spellingRecognizer.onend = null;
